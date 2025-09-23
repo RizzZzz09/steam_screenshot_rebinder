@@ -1,0 +1,16 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+
+# PyCharm project settings
+.idea/
+
+# Test cache
+pytest_cache/
+
+# System files (Windows/macOS)
+Thumbs.db
+.DS_Store
