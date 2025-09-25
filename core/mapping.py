@@ -2,13 +2,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Tuple, Optional
+from typing import Iterable
 
 from PIL import Image
 
 
 @dataclass(frozen=True)
 class ImageInfo:
+    """Информация об изображении.
+
+    Attributes:
+        path: Путь к файлу изображения.
+        width: Ширина изображения в пикселях.
+        height: Высота изображения в пикселях.
+        mode: Цветовой режим (например, "RGB").
+        fmt: Формат файла (например, "PNG").
+        size_bytes: Размер файла в байтах.
+    """
+
     path: Path
     width: int
     height: int
@@ -19,16 +30,28 @@ class ImageInfo:
 
 @dataclass(frozen=True)
 class Pair:
-    old: Path   # источник (контент берём отсюда)
-    new: Path   # приёмник (имя файла сохраняем)
+    """Пара файлов для замены содержимого.
+
+    Attributes:
+        old: Источник (контент берётся отсюда).
+        new: Приёмник (имя файла сохраняется).
+    """
+
+    old: Path
+    new: Path
 
 
 def get_image_info(p: Path) -> ImageInfo:
-    """
-    Читает базовую информацию об изображении без изменения порядка файлов.
+    """Читает базовую информацию об изображении.
+
+    Args:
+        p: Путь к изображению.
+
+    Returns:
+        ImageInfo: Информация об изображении.
     """
     with Image.open(p) as im:
-        im.load()  # прогружаем, чтобы были width/height корректно
+        im.load()
         fmt = (im.format or "").upper()
         return ImageInfo(
             path=p,
@@ -41,12 +64,27 @@ def get_image_info(p: Path) -> ImageInfo:
 
 
 def build_pairs(
-    old_files: List[Path],
-    new_files: List[Path],
-    n: Optional[int] = None,
-    strict_equal: bool = False,
-) -> Tuple[List[Pair], List[str]]:
-    warnings: List[str] = []
+        old_files: list[Path],
+        new_files: list[Path],
+        n: int | None = None,
+        strict_equal: bool = False,
+) -> tuple[list[Pair], list[str]]:
+    """Формирует список пар файлов для замены.
+
+    Args:
+        old_files: Список файлов-источников.
+        new_files: Список файлов-приёмников.
+        n: Максимальное количество пар. По умолчанию берётся минимальное
+           из двух списков.
+        strict_equal: Если True — требует равное количество файлов.
+
+    Returns:
+        tuple[list[Pair], list[str]]: (список пар, список предупреждений).
+
+    Raises:
+        ValueError: Если strict_equal=True и количество файлов не совпадает.
+    """
+    warnings: list[str] = []
 
     if n is None:
         n = min(len(old_files), len(new_files))
@@ -71,14 +109,22 @@ def build_pairs(
 
 
 def preview_pairs(
-    pairs: Iterable[Pair],
-    *, limit: int | None = 20,
-) -> List[str]:
+        pairs: Iterable[Pair],
+        *,
+        limit: int | None = 20,
+) -> list[str]:
+    """Готовит предпросмотр пар файлов.
+
+    Показывает размеры и форматы изображений для первых `limit` записей.
+
+    Args:
+        pairs: Итератор пар файлов.
+        limit: Ограничение на количество строк предпросмотра.
+
+    Returns:
+        list[str]: Список строк предпросмотра.
     """
-    Готовит человекочитаемый предпросмотр пар с базовой информацией
-    (размеры, формат) — первые `limit` записей.
-    """
-    lines: List[str] = []
+    lines: list[str] = []
     count = 0
     for pr in pairs:
         try:
@@ -100,16 +146,21 @@ def preview_pairs(
 
 
 def probe_conversion_warnings(
-    pairs: Iterable[Pair],
-    *, force_format: Optional[str] = None,
-) -> List[str]:
+        pairs: Iterable[Pair],
+        *,
+        force_format: str | None = None,
+) -> list[str]:
+    """Проверяет возможную перекодировку изображений.
+
+    Args:
+        pairs: Итератор пар файлов.
+        force_format: Принудительный формат ("jpg" или "png").
+            Если None — определяется по расширению файла-приёмника.
+
+    Returns:
+        list[str]: Список предупреждений.
     """
-    Проверяет потенциальную перекодировку:
-    - Если force_format задан ('jpg'|'png'), сообщаем об этом.
-    - Иначе ориентируемся на расширение new-файла: если old-формат != ожидаемому,
-      подсвечиваем, что будет перекодирование.
-    """
-    warns: List[str] = []
+    warns: list[str] = []
     ff = (force_format or "").lower()
     for pr in pairs:
         try:
@@ -117,16 +168,23 @@ def probe_conversion_warnings(
             new_ext = pr.new.suffix.lower()
             if ff in {"jpg", "jpeg"}:
                 if old_info.fmt != "JPEG":
-                    warns.append(f"{pr.new.name}: принудительно JPEG (OLD был {old_info.fmt or '?'})")
+                    warns.append(
+                        f"{pr.new.name}: принудительно JPEG (OLD был {old_info.fmt or '?'})"
+                    )
             elif ff == "png":
                 if old_info.fmt != "PNG":
-                    warns.append(f"{pr.new.name}: принудительно PNG (OLD был {old_info.fmt or '?'})")
+                    warns.append(
+                        f"{pr.new.name}: принудительно PNG (OLD был {old_info.fmt or '?'})"
+                    )
             else:
-                # auto: ориентируемся на расширение new
                 if new_ext in {".jpg", ".jpeg"} and old_info.fmt != "JPEG":
-                    warns.append(f"{pr.new.name}: будет JPEG (OLD был {old_info.fmt or '?'})")
+                    warns.append(
+                        f"{pr.new.name}: будет JPEG (OLD был {old_info.fmt or '?'})"
+                    )
                 if new_ext == ".png" and old_info.fmt != "PNG":
-                    warns.append(f"{pr.new.name}: будет PNG (OLD был {old_info.fmt or '?'})")
+                    warns.append(
+                        f"{pr.new.name}: будет PNG (OLD был {old_info.fmt or '?'})"
+                    )
         except Exception as e:
             warns.append(f"{pr.new.name}: ⚠️ ошибка чтения для проверки формата: {e}")
     return warns

@@ -11,6 +11,8 @@ __pycache__/
 # Test cache
 pytest_cache/
 
-# System files (Windows/macOS)
-Thumbs.db
-.DS_Store
+# Linters / type-checkers
+.ruff_cache/
+.mypy_cache/
+
+# Build artifacts

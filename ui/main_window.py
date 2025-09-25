@@ -1,25 +1,39 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QFileDialog,
-    QLabel, QTextEdit, QCheckBox, QComboBox, QSpinBox, QMessageBox, QProgressBar
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QLineEdit,
+    QFileDialog,
+    QLabel,
+    QTextEdit,
+    QCheckBox,
+    QComboBox,
+    QSpinBox,
+    QMessageBox,
+    QProgressBar,
 )
 
 from core.scanner import scan_old_new
-from core.mapping import build_pairs, preview_pairs, get_image_info
+from core.mapping import build_pairs, get_image_info
 from core.replacer import replace_many
 from core.autoscreen import AutoScreener, AutoScreenError
 
 
 class MainWindow(QWidget):
-    def __init__(self, parent=None):
+    """Главное окно приложения Steam Screenshot Rebinder."""
+
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Steam Screenshot Rebinder — light UI")
         self.setMinimumWidth(900)
 
-        # --- Paths row
+        # --------------------------- Paths ---------------------------
         self.old_edit = QLineEdit()
         self.old_btn = QPushButton("Выбрать OLD…")
         self.old_btn.clicked.connect(self.choose_old)
@@ -40,7 +54,7 @@ class MainWindow(QWidget):
         paths_layout.addLayout(row1)
         paths_layout.addLayout(row2)
 
-        # --- Options
+        # --------------------------- Options ---------------------------
         self.dry_chk = QCheckBox("Dry-run")
         self.dry_chk.setChecked(True)
 
@@ -60,7 +74,7 @@ class MainWindow(QWidget):
         opts_layout.addStretch()
         opts_layout.addWidget(self.dry_chk)
 
-        # --- Actions
+        # --------------------------- Actions ---------------------------
         self.preview_btn = QPushButton("Предпросмотр пар")
         self.preview_btn.clicked.connect(self.on_preview)
 
@@ -73,9 +87,9 @@ class MainWindow(QWidget):
         actions_layout.addWidget(self.replace_btn)
         actions_layout.addStretch()
 
-        # --- AutoScreen (F12)
+        # --------------------------- AutoScreen ---------------------------
         self.autoscreen_count = QSpinBox()
-        self.autoscreen_count.setRange(1, 100000)
+        self.autoscreen_count.setRange(1, 100_000)
         self.autoscreen_count.setValue(10)
 
         self.autoscreen_interval = QSpinBox()
@@ -113,7 +127,7 @@ class MainWindow(QWidget):
         autos_layout.addStretch()
         autos_layout.addWidget(self.autoscreen_status)
 
-        # --- Progress + Log
+        # --------------------------- Progress & Log ---------------------------
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
@@ -121,7 +135,7 @@ class MainWindow(QWidget):
         self.log = QTextEdit()
         self.log.setReadOnly(True)
 
-        # --- Root layout
+        # --------------------------- Root layout ---------------------------
         root = QVBoxLayout(self)
         root.addLayout(paths_layout)
         root.addLayout(opts_layout)
@@ -131,7 +145,7 @@ class MainWindow(QWidget):
         root.addWidget(QLabel("Лог:"))
         root.addWidget(self.log, 1)
 
-        # State
+        # --------------------------- State ---------------------------
         self._old_dir: Path | None = None
         self._new_dir: Path | None = None
         self._replace_queue: list[tuple[Path, Path]] = []
@@ -147,58 +161,73 @@ class MainWindow(QWidget):
 
     # --------------------------- Log helpers ---------------------------
 
-    def _log_clear(self):
+    def _log_clear(self) -> None:
+        """Очищает лог и включает поддержку HTML."""
         self.log.clear()
         self.log.setAcceptRichText(True)
 
-    def _log_html(self, html: str):
+    def _log_html(self, html: str) -> None:
+        """Добавляет HTML-строку в лог."""
         self.log.append(html)
         self.log.ensureCursorVisible()
 
     def _badge(self, text: str, color: str) -> str:
+        """Рисует компактный цветной бейдж (HTML)."""
         return (
             '<span style="display:inline-block;padding:1px 6px;'
-            f'border-radius:6px;background:{color};color:#fff;'
-            'font:11px/1.4 monospace;">' + text + '</span>'
+            f"border-radius:6px;background:{color};color:#fff;"
+            'font:11px/1.4 monospace;">' + text + "</span>"
         )
 
-    def _sep(self):
+    def _sep(self) -> None:
+        """Горизонтальный разделитель в логе."""
         self._log_html('<div style="margin:6px 0;border-top:1px solid #3a3a3a;"></div>')
 
     def _mono(self, s: str) -> str:
+        """Обернуть текст в моноширинный шрифт (HTML)."""
         return f'<span style="font-family:ui-monospace,Consolas,monospace">{s}</span>'
 
-    def _fmt_pair_preview(self, idx: int, old_name: str, old_wh: str, old_fmt: str,
-                          new_name: str, new_wh: str, new_fmt: str) -> str:
+    def _fmt_pair_preview(
+        self,
+        idx: int,
+        old_name: str,
+        old_wh: str,
+        old_fmt: str,
+        new_name: str,
+        new_wh: str,
+        new_fmt: str,
+    ) -> str:
+        """Строка предпросмотра пары (HTML)."""
         left = self._mono(f"{idx:>3}.  OLD: {old_name:<32}  {old_wh:<12} {old_fmt:<5}")
         right = self._mono(f"NEW: {new_name:<32}  {new_wh:<12} {new_fmt:<5}")
         return f'<div style="margin:2px 0">{left}<br>{right}</div>'
 
     def _fmt_result(self, ok: bool, new_name: str, old_name: str, action: str, err: str | None) -> str:
+        """Строка результата замены (HTML)."""
         badge = self._badge("OK", "#2e7d32") if ok else self._badge("ERR", "#c62828")
-        mid = '&larr;'
-        if ok:
-            tail = self._mono(f"({action})")
-        else:
-            tail = f'<span style="color:#ffb4a9">{self._mono(err or "unknown error")}</span>'
+        mid = "&larr;"
+        tail = self._mono(f"({action})") if ok else f'<span style="color:#ffb4a9">{self._mono(err or "unknown error")}</span>'
         line = f'{badge} {self._mono(new_name)} {mid} {self._mono(old_name)}  {tail}'
         return f'<div style="margin:2px 0">{line}</div>'
 
     # --------------------------- Path helpers ---------------------------
 
-    def choose_old(self):
+    def choose_old(self) -> None:
+        """Открывает диалог выбора папки OLD."""
         d = QFileDialog.getExistingDirectory(self, "Выбери папку OLD")
         if d:
             self.old_edit.setText(d)
             self._old_dir = Path(d)
 
-    def choose_new(self):
+    def choose_new(self) -> None:
+        """Открывает диалог выбора папки NEW (screenshots)."""
         d = QFileDialog.getExistingDirectory(self, "Выбери папку NEW (screenshots)")
         if d:
             self.new_edit.setText(d)
             self._new_dir = Path(d)
 
-    def _get_paths(self):
+    def _get_paths(self) -> tuple[Path, Path] | None:
+        """Возвращает выбранные пути OLD/NEW или None с показом ошибки."""
         old = self._old_dir or Path(self.old_edit.text().strip('"'))
         new = self._new_dir or Path(self.new_edit.text().strip('"'))
         if not old.is_dir():
@@ -209,7 +238,8 @@ class MainWindow(QWidget):
             return None
         return old, new
 
-    def _set_busy(self, busy: bool):
+    def _set_busy(self, busy: bool) -> None:
+        """Переключает элементы UI в режим занятости."""
         self.preview_btn.setEnabled(not busy)
         self.replace_btn.setEnabled(not busy and bool(self._replace_queue))
         self.old_btn.setEnabled(not busy)
@@ -221,7 +251,8 @@ class MainWindow(QWidget):
 
     # --------------------------- Preview flow ---------------------------
 
-    def on_preview(self):
+    def on_preview(self) -> None:
+        """Формирует предпросмотр пар файлов."""
         paths = self._get_paths()
         if not paths:
             return
@@ -241,28 +272,33 @@ class MainWindow(QWidget):
                     oi = get_image_info(p.old)
                     ni = get_image_info(p.new)
                     line = self._fmt_pair_preview(
-                        i + 1, p.old.name, f"{oi.width}x{oi.height}", oi.fmt or "?",
-                        p.new.name, f"{ni.width}x{ni.height}", ni.fmt or "?"
+                        i + 1,
+                        p.old.name,
+                        f"{oi.width}x{oi.height}",
+                        oi.fmt or "?",
+                        p.new.name,
+                        f"{ni.width}x{ni.height}",
+                        ni.fmt or "?",
                     )
                 except Exception as e:
                     line = (
                         f'<div style="color:#ffb74d">'
                         f'{self._mono(f"{i+1:>3}. {p.new.name} ← {p.old.name}")}'
-                        f' — ошибка чтения: {e}</div>'
+                        f" — ошибка чтения: {e}</div>"
                     )
                 self._log_html(line)
 
             self._sep()
             warns = [*scan_warnings, *map_warnings]
             if warns:
-                self._log_html('<div><b>⚠ Предупреждения:</b></div>')
+                self._log_html("<div><b>⚠ Предупреждения:</b></div>")
                 for w in warns:
                     self._log_html(f'<div style="color:#ffb74d">• {w}</div>')
 
             self._log_html(
                 f'<div style="margin-top:6px">'
                 f'{self._mono(f"Итого пар: {len(pairs)} (OLD={len(old_list)}, NEW={len(new_list)})")}'
-                f'</div>'
+                f"</div>"
             )
             self._replace_queue = [(p.old, p.new) for p in pairs]
             self.replace_btn.setEnabled(len(pairs) > 0)
@@ -274,7 +310,8 @@ class MainWindow(QWidget):
 
     # --------------------------- Replace flow ---------------------------
 
-    def on_replace(self):
+    def on_replace(self) -> None:
+        """Запускает процесс замены содержимого файлов."""
         if not self._replace_queue:
             QMessageBox.information(self, "Нет пар", "Сначала сделай предпросмотр.")
             return
@@ -285,7 +322,7 @@ class MainWindow(QWidget):
 
         self._log_clear()
         self._log_html(
-            f'<h4>▶ Замена содержимого</h4>'
+            f"<h4>▶ Замена содержимого</h4>"
             f'<div style="margin-bottom:4px">{self._badge("dry-run: ON" if dry else "dry-run: OFF", "#546e7a")} '
             f'{self._badge(f"format: {ff}", "#37474f")}</div>'
         )
@@ -298,9 +335,9 @@ class MainWindow(QWidget):
         self.progress.setValue(0)
         QTimer.singleShot(0, self._process_next_replace)
 
-    def _process_next_replace(self):
+    def _process_next_replace(self) -> None:
+        """Выполняет один шаг пакетной замены и планирует следующий."""
         total = len(self._replace_queue)
-
         if self._replace_index >= total:
             self._sep()
             self._log_html(self._mono(f"Готово: {total}/{total}"))
@@ -319,9 +356,10 @@ class MainWindow(QWidget):
         self.progress.setValue(int(self._replace_index * 100 / max(1, total)))
         QTimer.singleShot(0, self._process_next_replace)
 
-    # --------------------------- AutoScreen (F12) ---------------------------
+    # --------------------------- AutoScreen ---------------------------
 
-    def on_autoscreen_start(self):
+    def on_autoscreen_start(self) -> None:
+        """Запускает режим автоскрина (эмуляция F12)."""
         if self._autos_runner is not None:
             QMessageBox.information(self, "Уже запущено", "Автоскрин уже выполняется.")
             return
@@ -332,18 +370,22 @@ class MainWindow(QWidget):
 
         if delay < 2:
             reply = QMessageBox.question(
-                self, "Внимание",
+                self,
+                "Внимание",
                 "Задержка запуска меньше 2 секунд. Успеешь переключиться в игру?\n"
                 "Продолжить?",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
             )
             if reply != QMessageBox.Yes:
                 return
 
         try:
             self._autos_runner = AutoScreener(
-                count=count, interval_sec=float(interval),
-                start_delay_sec=float(delay), key="f12"
+                count=count,
+                interval_sec=float(interval),
+                start_delay_sec=float(delay),
+                key="f12",
             )
             self._autos_runner.start()
         except Exception as e:
@@ -351,11 +393,9 @@ class MainWindow(QWidget):
             self._autos_runner = None
             return
 
-        # лог-баннер
         self._log_html("<h4>▶ Автоскрин (F12)</h4>")
         self._sep()
 
-        # сброс счётчиков для логики тиков
         self._autos_prev_remaining = self._autos_runner.remaining
         self._autos_prev_countdown_sec = None
 
@@ -364,7 +404,8 @@ class MainWindow(QWidget):
         self.autoscreen_stop_btn.setEnabled(True)
         self._autos_timer.start()
 
-    def on_autoscreen_stop(self):
+    def on_autoscreen_stop(self) -> None:
+        """Останавливает автоскрин."""
         if self._autos_runner is not None:
             self._autos_runner.stop()
         self._autos_timer.stop()
@@ -375,7 +416,8 @@ class MainWindow(QWidget):
         self._autos_prev_remaining = None
         self._autos_prev_countdown_sec = None
 
-    def _autos_tick(self):
+    def _autos_tick(self) -> None:
+        """Обработчик периодического таймера автоскрина."""
         if self._autos_runner is None:
             self._autos_timer.stop()
             self.autoscreen_status.setText("Автоскрин: не запущен")
@@ -416,13 +458,14 @@ class MainWindow(QWidget):
                 self._autos_prev_remaining = remaining
 
             if remaining < self._autos_prev_remaining:
-                # Было одно или несколько нажатий
                 done = self._autos_prev_remaining - remaining
                 from datetime import datetime
+
                 for k in range(done):
-                    idx = (self._autos_runner.count - (self._autos_prev_remaining - k) + 1)
+                    idx = self._autos_runner.count - (self._autos_prev_remaining - k) + 1
                     t = datetime.now().strftime("%H:%M:%S")
                     self._log_html(self._mono(f"[{t}] [F12] скрин #{idx}"))
+
                 self._autos_prev_remaining = remaining
 
             self.autoscreen_status.setText(f"Идёт автоскрин — осталось: {remaining}")

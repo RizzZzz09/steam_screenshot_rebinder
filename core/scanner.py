@@ -1,36 +1,55 @@
 from pathlib import Path
-from typing import List
 
 
-def list_images_raw(dir_path: Path, exts: tuple[str, ...] = (".jpg", ".png")) -> List[Path]:
-    """
-    Читает файлы из указанной папки в порядке ОС (без сортировки).
-    Возвращает список путей к файлам, которые имеют разрешения exts.
+def list_images_raw(dir_path: Path, exts: tuple[str, ...] = (".jpg", ".png")) -> list[Path]:
+    """Возвращает список файлов изображений из указанной папки.
+
+    Файлы выбираются в порядке, в котором их отдаёт ОС (без сортировки).
+
+    Args:
+        dir_path: Путь к директории.
+        exts: Допустимые расширения файлов.
+
+    Returns:
+        list[Path]: Список путей к найденным файлам.
+
+    Raises:
+        FileNotFoundError: Если директория не существует.
+        NotADirectoryError: Если путь не является директорией.
     """
     if not dir_path.exists():
-        raise FileNotFoundError(f"Папка {dir_path} не найдена")
+        raise FileNotFoundError(f"Директория не найдена: {dir_path}")
 
     if not dir_path.is_dir():
-        raise NotADirectoryError(f"{dir_path} не является папкой")
+        raise NotADirectoryError(f"Указанный путь не является директорией: {dir_path}")
 
-    files: List[Path] = []
-    for entry in dir_path.iterdir():  # порядок как отдаёт ОС
+    files: list[Path] = []
+    for entry in dir_path.iterdir():
         if entry.is_file() and entry.suffix.lower() in exts:
             files.append(entry)
     return files
 
 
-def scan_old_new(old_dir: Path, new_dir: Path, n: int | None = None) -> tuple[List[Path], List[Path], List[str]]:
-    """
-    Сканирует две папки (OLD и NEW).
-    - Берёт список файлов как есть (без сортировки).
-    - Ограничивает количество по n (по умолчанию n = len(old)).
-    - Если файлов в new меньше, чем в old → урезаем до минимума и пишем предупреждение.
+def scan_old_new(old_dir: Path, new_dir: Path, n: int | None = None) -> tuple[list[Path], list[Path], list[str]]:
+    """Сканирует директории OLD и NEW и подготавливает списки файлов.
 
-    Возвращает:
-    (список OLD, список NEW, список предупреждений)
+    Поведение:
+        - Берёт список файлов в порядке ОС (без сортировки).
+        - Ограничивает количество файлов параметром n.
+        - Если файлов в NEW меньше, чем в OLD, урезает до минимума и добавляет предупреждение.
+
+    Args:
+        old_dir: Путь к директории с исходными файлами (OLD).
+        new_dir: Путь к директории с файлами-назначениями (NEW).
+        n: Максимальное количество файлов (по умолчанию равно количеству в OLD).
+
+    Returns:
+        tuple[list[Path], list[Path], list[str]]:
+            - Список файлов из OLD.
+            - Список файлов из NEW.
+            - Список предупреждений.
     """
-    warnings: List[str] = []
+    warnings: list[str] = []
 
     old_files = list_images_raw(old_dir)
     new_files = list_images_raw(new_dir)
@@ -45,12 +64,9 @@ def scan_old_new(old_dir: Path, new_dir: Path, n: int | None = None) -> tuple[Li
 
     if len(new_files) < n:
         warnings.append(
-            f"В NEW меньше файлов ({len(new_files)}) чем в OLD ({len(old_files)}). "
+            f"Файлов в NEW меньше ({len(new_files)}) чем в OLD ({len(old_files)}). "
             f"Будет использовано {len(new_files)} пар."
         )
         n = len(new_files)
 
-    old_limited = old_files[:n]
-    new_limited = new_files[:n]
-
-    return old_limited, new_limited, warnings
+    return old_files[:n], new_files[:n], warnings
