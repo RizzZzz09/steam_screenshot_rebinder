@@ -4,15 +4,24 @@ __pycache__/
 
 # Virtual environment
 .venv/
+venv/
 
 # PyCharm project settings
 .idea/
+.vscode/
 
 # Test cache
-pytest_cache/
+.pytest_cache/
 
 # Linters / type-checkers
 .ruff_cache/
 .mypy_cache/
 
 # Build artifacts
+build/
+dist/
+release/
+*.zip
+
+# PyInstaller (optional leftovers)
+*.spec.bak
